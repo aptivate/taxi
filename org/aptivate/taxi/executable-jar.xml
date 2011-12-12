@@ -1,0 +1,186 @@
+<!--
+	Based on the standard "jar with dependencies" assembly described at:
+	http://maven.apache.org/plugins/maven-assembly-plugin/descriptor-refs.html#jar-with-dependencies
+	But doesn't dump everything in the root directory! We want to keep
+	web files separate, for the web server.
+-->
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.0 http://maven.apache.org/xsd/assembly-1.1.0.xsd">
+	<id>executable</id>
+	<formats>
+		<format>jar</format>
+	</formats>
+	<includeBaseDirectory>false</includeBaseDirectory>
+	<dependencySets>
+		<dependencySet>
+			<useProjectArtifact>false</useProjectArtifact>
+			<unpack>true</unpack>
+			<unpackOptions>
+				<excludes>
+					<!-- <exclude>META-INF/</exclude> -->
+					<exclude>META-INF/BCKEY.SF</exclude>
+					<exclude>META-INF/BCKEY.DSA</exclude>
+					<exclude>META-INF/JCE_RSA.SF</exclude>
+					<exclude>META-INF/JCE_RSA.RSA</exclude>
+					<exclude>META-INF/COPYING.txt</exclude>
+					<exclude>META-INF/DEPENDENCIES</exclude>
+					<exclude>META-INF/INDEX.LIST</exclude>
+					<exclude>META-INF/LICENSE*</exclude>
+					<exclude>META-INF/MANIFEST.MF</exclude>
+					<exclude>META-INF/NOTICE*</exclude>
+					<exclude>META-INF/copyright.txt</exclude>
+					<exclude>META-INF/jing-copying.html</exclude>
+					<exclude>META-INF/license.txt</exclude>
+					<exclude>META-INF/maven/</exclude>
+					<exclude>LICENSE*</exclude>
+					<exclude>NOTICE*</exclude>
+					<exclude>license/</exclude>
+					<exclude>1.0/</exclude>
+					<exclude>ASL2.0</exclude>
+					<exclude>about.html</exclude>
+					
+					<!--
+					We exclude META-INF/spring.* from all packages, and
+					later include only the ones from
+					spring-security-core, to avoid getting the CXF ones
+					randomly, depending on which dependency is processed
+					first.
+					-->
+					<exclude>META-INF/spring.*</exclude>
+					
+					<!-- 
+					We have our own jasperreports_extension.properties in
+					/conf, which conflicts in name with the one in
+					jasperreports.jar, so we have to exclude that one and
+					copy its contents into our own version.
+					-->
+					<exclude>jasperreports_extension.properties</exclude>
+				</excludes>
+			</unpackOptions>
+			<excludes>
+				<exclude>org.hibernate:hibernate-tools</exclude>
+				<exclude>org.beanshell:bsh</exclude>
+				<exclude>freemarker:freemarker</exclude>
+				<exclude>org.hibernate:jtidy</exclude>
+				<exclude>antlr:antlr</exclude>
+				
+				<!--
+				These jars have a scope of "test", but ExecutableJarServlet
+				doesn't know that, so we need to exclude them explicitly to
+				avoid them ending up in the ExecutableJarServlet's output.
+				-->
+				<exclude>activation:activation</exclude>
+				<exclude>net.sourceforge.htmlunit:htmlunit</exclude>
+				<exclude>xalan:xalan</exclude>
+				<exclude>xalan:serializer</exclude>
+				<exclude>org.apache.httpcomponents:httpclient</exclude>
+				<exclude>org.apache.httpcomponents:httpcore</exclude>
+				<exclude>org.apache.httpcomponents:httpmime</exclude>
+				<exclude>org.apache.james:apache-mime4j</exclude>
+				<exclude>net.sourceforge.htmlunit:htmlunit-core-js</exclude>
+				<exclude>xerces:xercesImpl</exclude>
+				<exclude>net.sourceforge.nekohtml:nekohtml</exclude>
+				<exclude>net.sourceforge.cssparser:cssparser</exclude>
+				<exclude>org.w3c.css:sac</exclude>
+				<exclude>org.apache.derby:derbytools</exclude>
+				
+				<!-- don't exclude junit, we need ComparisonFailure -->
+				<!-- <exclude>junit:junit</exclude> -->
+				
+				<!--
+				Exclude Jasper because it depends on JULI which may not be
+				on the classpath, causing Faces initialization to fail.
+				It could only be included by a classpath search when the
+				ExecutableJarServlet runs under Tomcat. 
+				<exclude>org.apache.jasper:jasper</exclude>
+				-->
+			</excludes>
+		</dependencySet>
+
+		<!--
+		This is where we pick up META-INF/spring.* from spring-security-core,
+		avoiding the ones in CXF.
+		-->
+		<dependencySet>
+			<useProjectArtifact>false</useProjectArtifact>
+			<unpack>true</unpack>
+			<unpackOptions>
+				<includes>
+					<include>META-INF/spring.*</include>
+				</includes>
+			</unpackOptions>
+			<includes>
+				<include>org.springframework.security:spring-security-core</include>
+			</includes>
+		</dependencySet>
+		
+		<!--
+		All "provided" and "system" dependencies are not really provided 
+		when using embedded Jetty, so we need to bundle them too.
+		-->
+		<dependencySet>
+			<scope>provided</scope>
+			<useProjectArtifact>false</useProjectArtifact>
+			<unpack>true</unpack>
+		</dependencySet>
+		<dependencySet>
+			<scope>system</scope>
+			<useProjectArtifact>false</useProjectArtifact>
+			<unpack>true</unpack>
+		</dependencySet>
+	</dependencySets>
+	
+	<fileSets>
+		<!--
+		copy all the compiled binary classes and classpath resources
+		from web/WEB-INF/classes into the JAR root 
+		-->
+		<fileSet>
+			<directory>${project.build.outputDirectory}</directory>
+			<outputDirectory>.</outputDirectory>
+			<excludes>
+				<exclude>build.xml</exclude>
+				<exclude>database.properties</exclude>
+				<exclude>database-example*.properties</exclude>
+				<exclude>database-test*.properties</exclude>
+				<exclude>initial_data.sql</exclude>
+				<exclude>lic/**</exclude>
+				<exclude>log4j.properties</exclude>
+			</excludes>		
+    	</fileSet>
+
+		<!--
+		copy web content from the web/ directory into the web/ directory
+		inside the JAR  
+		-->
+		<fileSet>
+			<directory>${basedir}/web</directory>
+			<outputDirectory>web</outputDirectory>
+			<excludes>
+				<exclude>WEB-INF/classes/**</exclude>
+				<exclude>WEB-INF/lib/</exclude>
+				<exclude>**/.svn/</exclude>
+				<exclude>.svn/</exclude>
+				
+				<!--
+				We need web/META-INF.MANIFEST.MF as it contains the build
+				number which is displayed in the application, and is
+				required by InitApplicationListener.
+				-->
+				<!-- <exclude>META-INF/</exclude> -->
+			</excludes>		
+    	</fileSet>
+    	
+    	<!--
+    	copy the LIC configuration files from /conf/lic into the
+    	application root, replacing database.properties and
+    	log4j.properties
+    	-->
+		<fileSet>
+			<directory>${project.build.outputDirectory}/lic</directory>
+			<outputDirectory>.</outputDirectory>
+    	</fileSet>
+    	
+	</fileSets>
+</assembly>
